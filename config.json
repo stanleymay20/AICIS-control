@@ -1,0 +1,33 @@
+{
+  "exchanges": {
+    "OKX": {
+      "api_key": "21c32895-05b5-4664-aafd-887f61e09c1e",
+      "api_secret": "92E53B83AA212AECAC49836A36105927",
+      "password": "$tanleyMay20"
+    },
+    "BINANCE": {
+      "api_key": "Aho8iwgfidmfQYSiFnmBTCsla1xNCnPeggSV1XCtYQxCwEILMUCzg0AgdK02FOSz",
+      "api_secret": "tLZ5reZ45n70g0BTPkr057YxPwB9j6z8qOzZ8FKdwds0ufsyvph8PfQopfTS8x38"
+    },
+    "BYBIT": {
+      "api_key": "QDFtrEA6H0SGIEZYuy",
+      "api_secret": "HQRTnWwicRu7NcyMa3oG0HBJN7Afbz7ItHqi"
+    },
+    "BITSTAMP": {
+      "api_key": "tIP9I7QTaGHdZtQ8gGSxbMOSrz9A6sM5",
+      "api_secret": "wcApN09sWcmrrR4BwHe4CR2ngXBnJZcy"
+    },
+    "GATEIO": {
+      "api_key": "1c133d245917839aa0a406c8420fcae5",
+      "api_secret": "your_api_secret"
+    },
+    "DERIBIT": {
+      "api_key": "mD99qSRk",
+      "api_secret": "hqmAmMghYWRiErmAS_1L6012lBtP8Efli_Ls_HDH1uA"
+    }
+  },
+  "settings": {
+    "trade_amount": 0.001,
+    "profit_threshold": 0.1
+  }
+}

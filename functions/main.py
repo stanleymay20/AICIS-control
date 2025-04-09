@@ -1,13 +1,34 @@
-# Welcome to Cloud Functions for Firebase for Python!
-# To get started, simply uncomment the below code or create your own.
-# Deploy with `firebase deploy`
+from flask import Flask, jsonify, request
+import firebase_admin
+from firebase_admin import credentials, firestore
+import functions_framework
+from werkzeug.middleware.proxy_fix import ProxyFix  # ✅ Fix for Firebase requests
 
-from firebase_functions import https_fn
-from firebase_admin import initialize_app
+# Initialize Firebase Admin SDK
+cred = credentials.Certificate("aicis-control-firebase-adminsdk.json")
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
-# initialize_app()
-#
-#
-# @https_fn.on_request()
-# def on_request_example(req: https_fn.Request) -> https_fn.Response:
-#     return https_fn.Response("Hello world!")
+# Create Flask App
+app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app)  # ✅ Fix: Ensure Firebase handles requests properly
+
+# ✅ API Root
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"message": "AICIS API is running!"})
+
+# ✅ Trades Route
+@app.route("/api/trades", methods=["GET"])
+def get_trades():
+    trades = [
+        {"pair": "BTC/USD", "action": "BUY", "price": 45000, "profit": "+5%"},
+        {"pair": "ETH/USD", "action": "SELL", "price": 3000, "profit": "-2%"},
+    ]
+    return jsonify(trades)
+
+# ✅ Proper Firebase Function Handler
+@functions_framework.http
+def api(request):
+    """Firebase Cloud Function Wrapper"""
+    return app(request)
