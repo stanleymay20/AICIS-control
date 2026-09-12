@@ -1,116 +1,149 @@
-import ccxt
-import requests
 import json
 import logging
+import os
 import time
 
-# Configure logging
-import logging
+import ccxt
 
-# Setup Logging
 logging.basicConfig(
     filename="aicis.log",
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
-logging.info("🚀 AICIS Trading Bot Started...")
+logging.info("AICIS legacy trading bot started")
 
-# Exchange API credentials (from your uploaded keys)
-EXCHANGES = {
-    "binance": {"apiKey": "Aho8iwgfidmfQYSiFnmBTCsla1xNCnPeggSV1XCtYQxCwEILMUCzg0AgdK02FOSz", 
-                "secret": "tLZ5reZ45n70g0BTPkr057YxPwB9j6z8qOzZ8FKdwds0ufsyvph8PfQopfTS8x38"},
-    "bybit": {"apiKey": "QDFtrEA6H0SGIEZYuy", "secret": "HQRTnWwicRu7NcyMa3oG0HBJN7Afbz7ItHqi"},
-    "okx": {"apiKey": "9bebf275-6a03-4e05-b7c1-7ff121fed06c", "secret": "54777BCABEE0E1E86823AC2BA0BA08F0","password": "$tanleyMay20"},
-    "huobi": {"apiKey": "bg5t6ygr6y-dc85a4c8-96a6d7c2-965d8", "secret": "b288dae5-a9f8e895-6d3a3f5f-fd0f5"},
-    "bitstamp": {"apiKey": "tIP9I7QTaGHdZtQ8gGSxbMOSrz9A6sM5", "secret": "wcApN09sWcmrrR4BwHe4CR2ngXBnJZcy"},
-    "gateio": {"apiKey": "1c133d245917839aa0a406c8420fcae5", "secret": "d2d9dd58434037e11206dc8a49f66de9aa83a3022b78689b5a79e0858da41601"},
-    "deribit": {"apiKey": "mD99qSRk", "secret": "hqmAmMghYWRiErmAS_1L6012lBtP8Efli_Ls_HDH1uA"},
-    "bitfinex": {"apiKey": "dde99252899b20b3129a8d2e3b630fa95084bd7a4f9", "secret": "6dc1319a3ac46d91432ebd426645cb416afc99cb857"},
+# SECURITY NOTE
+# -------------
+# Exchange credentials must be supplied through environment variables or a
+# dedicated secret manager. Never commit API keys, secrets, passwords, or
+# exchange credentials to this repository.
+#
+# Any credential that appeared in previous public Git history must be treated
+# as exposed and rotated/revoked at the provider. Removing it from the current
+# branch tip does not revoke it and does not erase historical copies.
+
+EXCHANGE_ENV = {
+    "binance": ("BINANCE_API_KEY", "BINANCE_API_SECRET", None),
+    "bybit": ("BYBIT_API_KEY", "BYBIT_API_SECRET", None),
+    "okx": ("OKX_API_KEY", "OKX_API_SECRET", "OKX_API_PASSWORD"),
+    "huobi": ("HUOBI_API_KEY", "HUOBI_API_SECRET", None),
+    "bitstamp": ("BITSTAMP_API_KEY", "BITSTAMP_API_SECRET", None),
+    "gateio": ("GATEIO_API_KEY", "GATEIO_API_SECRET", None),
+    "deribit": ("DERIBIT_API_KEY", "DERIBIT_API_SECRET", None),
+    "bitfinex": ("BITFINEX_API_KEY", "BITFINEX_API_SECRET", None),
 }
 
-# Function to initialize exchanges
+
+def load_exchange_credentials():
+    credentials = {}
+    for exchange_name, (key_var, secret_var, password_var) in EXCHANGE_ENV.items():
+        api_key = os.getenv(key_var)
+        api_secret = os.getenv(secret_var)
+        password = os.getenv(password_var) if password_var else None
+
+        # Fail closed for an exchange when required credentials are absent.
+        if not api_key or not api_secret or (password_var and not password):
+            logging.warning("Skipping %s: required credentials are not configured", exchange_name)
+            continue
+
+        entry = {"apiKey": api_key, "secret": api_secret}
+        if password is not None:
+            entry["password"] = password
+        credentials[exchange_name] = entry
+
+    return credentials
+
+
 def initialize_exchanges():
     exchange_instances = {}
-    for name, keys in EXCHANGES.items():
+    for name, keys in load_exchange_credentials().items():
         try:
             exchange_class = getattr(ccxt, name)
-            exchange = exchange_class({
+            exchange_config = {
                 "apiKey": keys["apiKey"],
                 "secret": keys["secret"],
                 "enableRateLimit": True,
-            })
+            }
+            if "password" in keys:
+                exchange_config["password"] = keys["password"]
+
+            exchange = exchange_class(exchange_config)
             exchange.load_markets()
             exchange_instances[name] = exchange
-            logging.info(f"✅ Connected to {name.upper()}")
-        except Exception as e:
-            logging.error(f"❌ Failed to connect to {name.upper()}: {str(e)}")
+            logging.info("Connected to %s", name.upper())
+        except Exception as exc:
+            logging.error("Failed to connect to %s: %s", name.upper(), str(exc))
     return exchange_instances
 
-# Function to execute trades
-def execute_trade(exchange, symbol, side, amount):
-    logging.info(f"⚡ Attempting trade on {exchange.id.upper()}: {side} {amount} {symbol}")
 
+def execute_trade(exchange, symbol, side, amount):
+    logging.info("Attempting trade on %s: %s %s %s", exchange.id.upper(), side, amount, symbol)
     try:
         order = exchange.create_market_order(symbol, side, amount)
-        logging.info(f"✅ Trade executed on {exchange.id.upper()}: {order}")
-    except Exception as e:
-        logging.error(f"❌ Trade failed on {exchange.id.upper()} for {symbol}: {str(e)}")
+        logging.info("Trade executed on %s: %s", exchange.id.upper(), json.dumps(order, default=str))
+    except Exception as exc:
+        logging.error("Trade failed on %s for %s: %s", exchange.id.upper(), symbol, str(exc))
 
 
-
-# Function to check balances
 def check_balances(exchange):
     try:
         balance = exchange.fetch_balance()
-        logging.info(f"💰 {exchange.id.upper()} Balance: {json.dumps(balance, indent=4)}")
-    except Exception as e:
-        logging.error(f"⚠️ Failed to fetch balance for {exchange.id.upper()}: {str(e)}")
+        logging.info("Balance fetched for %s", exchange.id.upper())
+        return balance
+    except Exception as exc:
+        logging.error("Failed to fetch balance for %s: %s", exchange.id.upper(), str(exc))
+        return None
 
-# Function to find arbitrage opportunities
+
 def find_arbitrage_opportunities(exchanges, pair):
     prices = {}
     for name, exchange in exchanges.items():
         try:
             ticker = exchange.fetch_ticker(pair)
             prices[name] = ticker["last"]
-            logging.info(f"{name.upper()} {pair} price: {ticker['last']}")
-        except Exception as e:
-            logging.error(f"Could not fetch price for {pair} on {name.upper()}: {str(e)}")
+            logging.info("%s %s price: %s", name.upper(), pair, ticker["last"])
+        except Exception as exc:
+            logging.error("Could not fetch price for %s on %s: %s", pair, name.upper(), str(exc))
 
     if len(prices) > 1:
         max_price = max(prices.values())
         min_price = min(prices.values())
         spread = (max_price - min_price) / min_price * 100
+        logging.info("Max price: %s, Min price: %s, Spread: %.2f%%", max_price, min_price, spread)
 
-        logging.info(f"💹 Max price: {max_price}, Min price: {min_price}, Spread: {spread:.2f}%")
-
-        if spread > 0.15:  # Arbitrage threshold (1.5% profit)
+        if spread > 0.15:
             buy_exchange = min(prices, key=prices.get)
             sell_exchange = max(prices, key=prices.get)
-            logging.info(f"🔄 Arbitrage Opportunity: Buy on {buy_exchange.upper()} and Sell on {sell_exchange.upper()}")
+            logging.info(
+                "Arbitrage opportunity: buy on %s and sell on %s",
+                buy_exchange.upper(),
+                sell_exchange.upper(),
+            )
             return buy_exchange, sell_exchange
     return None, None
 
-# AICIS Trading Engine
+
 def aicis_trading():
-    logging.info("🚀 AICIS Trading Bot Starting...")
     exchanges = initialize_exchanges()
+    if len(exchanges) < 2:
+        raise RuntimeError(
+            "At least two fully configured exchanges are required. "
+            "Provide credentials through environment variables or a secret manager."
+        )
 
     trading_pairs = ["BTC/USDT", "ETH/USDT"]
-    trade_amount = 0.01  # Amount of crypto to trade
+    trade_amount = 0.01
 
     while True:
         for pair in trading_pairs:
             buy_exchange, sell_exchange = find_arbitrage_opportunities(exchanges, pair)
-
             if buy_exchange and sell_exchange:
                 execute_trade(exchanges[buy_exchange], pair, "buy", trade_amount)
                 execute_trade(exchanges[sell_exchange], pair, "sell", trade_amount)
-
-        logging.info("⏳ Waiting 60 seconds before next scan...")
+        logging.info("Waiting 60 seconds before next scan")
         time.sleep(60)
 
-# Start trading
+
 if __name__ == "__main__":
     aicis_trading()
